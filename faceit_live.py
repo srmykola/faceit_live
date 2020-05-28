@@ -1,4 +1,6 @@
 import os
+os.environ["KERAS_BACKEND"] = "plaidml.keras.backend"
+os.environ['OBJC_DISABLE_INITIALIZE_FORK_SAFETY'] = 'YES'
 from argparse import Namespace
 import argparse
 import youtube_dl
@@ -39,7 +41,7 @@ class FaceIt:
     @classmethod
     def add_model(cls, model):
         FaceIt.MODELS[model._name] = model
-    
+
     def __init__(self, name, person_a, person_b):
         def _create_person_data(person):
             return {
@@ -48,7 +50,7 @@ class FaceIt:
                 'faces' : os.path.join(FaceIt.PERSON_PATH, person + '.jpg'),
                 'photos' : []
             }
-        
+
         self._name = name
 
         self._people = {
@@ -57,15 +59,15 @@ class FaceIt:
         }
         self._person_a = person_a
         self._person_b = person_b
-        
+
         self._faceswap = FaceSwapInterface()
 
         if not os.path.exists(os.path.join(FaceIt.VIDEO_PATH)):
-            os.makedirs(FaceIt.VIDEO_PATH)            
+            os.makedirs(FaceIt.VIDEO_PATH)
 
     def add_photos(self, person, photo_dir):
         self._people[person]['photos'].append(photo_dir)
-            
+
     def add_video(self, person, name, url=None, fps=20):
         self._people[person]['videos'].append({
             'name' : name,
@@ -79,9 +81,9 @@ class FaceIt:
     def extract_frames(self):
         self._process_media(self._extract_frames)
 
-    def extract_faces(self):        
+    def extract_faces(self):
         self._process_media(self._extract_faces)
-        self._process_media(self._extract_faces_from_photos, 'photos')        
+        self._process_media(self._extract_faces_from_photos, 'photos')
 
     def all_videos(self):
         return self._people[self._person_a]['videos'] + self._people[self._person_b]['videos']
@@ -92,10 +94,10 @@ class FaceIt:
                 func(person, video)
 
     def _video_path(self, video):
-        return os.path.join(FaceIt.VIDEO_PATH, video['name'])        
+        return os.path.join(FaceIt.VIDEO_PATH, video['name'])
 
     def _video_frames_path(self, video):
-        return os.path.join(FaceIt.PROCESSED_PATH, video['name'] + '_frames')        
+        return os.path.join(FaceIt.PROCESSED_PATH, video['name'] + '_frames')
 
     def _video_faces_path(self, video):
         return os.path.join(FaceIt.PROCESSED_PATH, video['name'] + '_faces')
@@ -108,7 +110,7 @@ class FaceIt:
 
     def _model_data_path(self):
         return os.path.join(FaceIt.PROCESSED_PATH, "model_data_" + self._name)
-    
+
     def _model_person_data_path(self, person):
         return os.path.join(self._model_data_path(), person)
 
@@ -126,14 +128,14 @@ class FaceIt:
     def _extract_frames(self, person, video):
         video_frames_dir = self._video_frames_path(video)
         video_clip = VideoFileClip(self._video_path(video))
-        
+
         start_time = time.time()
         print('[extract-frames] about to extract_frames for {}, fps {}, length {}s'.format(video_frames_dir, video_clip.fps, video_clip.duration))
-        
+
         if os.path.exists(video_frames_dir):
             print('[extract-frames] frames already exist, skipping extraction: {}'.format(video_frames_dir))
             return
-        
+
         os.makedirs(video_frames_dir)
         frame_num = 0
         for frame in tqdm.tqdm(video_clip.iter_frames(fps=video['fps']), total = video_clip.fps * video_clip.duration):
@@ -143,18 +145,18 @@ class FaceIt:
             frame_num += 1
 
         print('[extract] finished extract_frames for {}, total frames {}, time taken {:.0f}s'.format(
-            video_frames_dir, frame_num-1, time.time() - start_time))            
+            video_frames_dir, frame_num-1, time.time() - start_time))
 
     def _extract_faces(self, person, video):
         video_faces_dir = self._video_faces_path(video)
 
         start_time = time.time()
         print('[extract-faces] about to extract faces for {}'.format(video_faces_dir))
-        
+
         if os.path.exists(video_faces_dir):
             print('[extract-faces] faces already exist, skipping face extraction: {}'.format(video_faces_dir))
             return
-        
+
         os.makedirs(video_faces_dir)
         self._faceswap.extract(self._video_frames_path(video), video_faces_dir, self._people[person]['faces'])
 
@@ -163,11 +165,11 @@ class FaceIt:
 
         start_time = time.time()
         print('[extract-faces] about to extract faces for {}'.format(photo_faces_dir))
-        
+
         if os.path.exists(photo_faces_dir):
             print('[extract-faces] faces already exist, skipping face extraction: {}'.format(photo_faces_dir))
             return
-        
+
         os.makedirs(photo_faces_dir)
         self._faceswap.extract(self._video_path({ 'name' : photo_dir }), photo_faces_dir, self._people[person]['faces'])
 
@@ -176,7 +178,7 @@ class FaceIt:
         self.fetch()
         self.extract_frames()
         self.extract_faces()
-    
+
     def _symlink_faces_for_model(self, person, video):
         if isinstance(video, str):
             video = { 'name' : video }
@@ -203,7 +205,7 @@ class FaceIt:
     def convert(self, video_file, swap_model = False, duration = None, start_time = None, use_gan = False, face_filter = False, photos = True, crop_x = None, width = None, side_by_side = False, live=False, webcam=False):
         # Magic incantation to not have tensorflow blow up with an out of memory error.
         import tensorflow as tf
-        import keras.backend.tensorflow_backend as K
+        import keras as K
         config = tf.ConfigProto()
         config.gpu_options.allow_growth = True
         config.gpu_options.visible_device_list="0"
@@ -245,7 +247,7 @@ class FaceIt:
                     frame = converter.patch_image(frame, face)
                     if (not live and not webcam):
                         frame = frame.astype(numpy.float32)
-            if convert_colors:                    
+            if convert_colors:
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) # Swap RGB to BGR to work with OpenCV
             return frame
         def _convert_helper(get_frame, t):
@@ -263,39 +265,40 @@ class FaceIt:
             width = video_capture.get(3)  # float
             height = video_capture.get(4) # float
             print("webcam dimensions = {} x {}".format(width,height))
-            
+
             #video_capture = cv2.VideoCapture('./data/videos/ale.mp4')
-            if (webcam):
+            # if (webcam):
                 # create fake webcam device
-                camera = pyfakewebcam.FakeWebcam('/dev/video1', 640, 480)
-                camera.print_capabilities()
-                print("Fake webcam created, try using appear.in on Firefox or  ")
-          
+                # camera = pyfakewebcam.FakeWebcam('/dev/video1', 640, 480)
+                # camera.print_capabilities()
+                # print("Fake webcam created, try using appear.in on Firefox or  ")
+
             # loop until user clicks 'q' to exit
             while True:
                 ret, frame = video_capture.read()
                 frame = cv2.resize(frame, (640, 480))
-                # flip image, because webcam inverts it and we trained the model the other way! 
+                # flip image, because webcam inverts it and we trained the model the other way!
                 frame = cv2.flip(frame,1)
                 image = _convert_frame(frame, convert_colors = False)
                 # flip it back
                 image = cv2.flip(image,1)
 
-                
+
                 if (webcam):
-                    time.sleep(1/30.0)
-                    # firefox needs RGB 
-                    # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB) 
+                    # time.sleep(1/30.0)
+                    # firefox needs RGB
+                    # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
                     # chrome and skype UYUV - not working at the moment
                     # image = cv2.cvtColor(image, cv2.COLOR_BGR2YUV)
-                    
-                    camera.schedule_frame(image)
+
+                    # camera.schedule_frame(image)
+                    cv2.imshow('Stream',stream_v)
                     #print("writing to stream")
 
                 else:
                     cv2.imshow('Video', image)
                     #print("writing to screen")
-                    
+
                 # Hit 'q' on the keyboard to quit!
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     video_capture.release()
@@ -312,7 +315,7 @@ class FaceIt:
             # If a duration is set, trim clip
             if duration:
                 video = video.subclip(start_time, start_time + duration)
-            
+
             # Resize clip before processing
             if width:
                 video = video.resize(width = width)
@@ -333,7 +336,7 @@ class FaceIt:
                             on_color(color=(0,0,0), col_opacity=0.6))
                     return CompositeVideoClip([clip, text])
                 video = add_caption("Original", video)
-                new_video = add_caption("Swapped", new_video)                
+                new_video = add_caption("Swapped", new_video)
                 final_video = clips_array([[video], [new_video]])
             else:
                 final_video = new_video
@@ -346,7 +349,7 @@ class FaceIt:
                 os.makedirs(self.OUTPUT_PATH)
             output_path = os.path.join(self.OUTPUT_PATH, video_file)
             final_video.write_videofile(output_path, rewrite_audio = True)
-            
+
             # Clean up
             del video
             del new_video
@@ -387,20 +390,12 @@ class FaceSwapInterface:
 
 
 if __name__ == '__main__':
-    faceit = FaceIt('ale_to_oliver', 'ale', 'oliver')
+    faceit = FaceIt('mykola_to_elon', 'mykola', 'elon')
 
-    faceit.add_video('ale', 'aleweb.webm')
-    faceit.add_video('ale', 'ale.mp4')
-    faceit.add_video('ale', 'myvideo2.webm')
-    faceit.add_video('ale', 'aleweb2.webm')
+    faceit.add_video('mykola', 'mykola.mp4')
+    faceit.add_video('mykola', 'mykola1.mp4')
 
-    faceit.add_video('oliver', 'oliver_trumpcard.mp4', 'https://www.youtube.com/watch?v=JlxQ3IUWT0I')
-    faceit.add_video('oliver', 'oliver_taxreform.mp4', 'https://www.youtube.com/watch?v=g23w7WPSaU8')
-    faceit.add_video('oliver', 'oliver_zazu.mp4', 'https://www.youtube.com/watch?v=Y0IUPwXSQqg')
-    faceit.add_video('oliver', 'oliver_pastor.mp4', 'https://www.youtube.com/watch?v=mUndxpbufkg')
-    faceit.add_video('oliver', 'oliver_cookie.mp4', 'https://www.youtube.com/watch?v=H916EVndP_A')
-    faceit.add_video('oliver', 'oliver_lorelai.mp4', 'https://www.youtube.com/watch?v=G1xP2f1_1Jg')
-
+    faceit.add_video('elon', 'elonMorningRoutine.mp4', 'https://www.youtube.com/watch?v=3K4KA70auo8')
 
     FaceIt.add_model(faceit)
     parser = argparse.ArgumentParser()
@@ -408,17 +403,17 @@ if __name__ == '__main__':
     parser.add_argument('model', choices = FaceIt.MODELS.keys())
     parser.add_argument('video', nargs = '?')
     parser.add_argument('--duration', type = int, default = None)
-    parser.add_argument('--photos', action = 'store_true', default = False)    
+    parser.add_argument('--photos', action = 'store_true', default = False)
     parser.add_argument('--swap-model', action = 'store_true', default = False)
     parser.add_argument('--face-filter', action = 'store_true', default = False)
     parser.add_argument('--start-time', type = int, default = 0)
     parser.add_argument('--crop-x', type = int, default = None)
     parser.add_argument('--width', type = int, default = None)
-    parser.add_argument('--side-by-side', action = 'store_true', default = False)    
+    parser.add_argument('--side-by-side', action = 'store_true', default = False)
     args = parser.parse_args()
 
     faceit = FaceIt.MODELS[args.model]
-    
+
     if args.task == 'preprocess':
         faceit.preprocess()
     elif args.task == 'train':
